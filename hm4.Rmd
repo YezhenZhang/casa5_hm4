@@ -1,0 +1,92 @@
+```{r}
+library(sf)
+library(here)
+library(dplyr)
+library(janitor)
+library(countrycode)
+```
+
+
+1. load data
+  1.1 spatial data
+```{r}
+world_spatial_data <- st_read(here::here("spatial_world.geojson"))
+```
+  1.2 attribute data
+```{r}
+gii_2010<- read.csv("gii_2010.csv", 
+                         header = TRUE, 
+                         sep = ",",  
+                         encoding = "latin1")
+
+gii_2019<- read.csv("gii_2019.csv", 
+                         header = TRUE, 
+                         sep = ",",  
+                         encoding = "latin1")
+```
+
+
+2. manipulate data
+  2.1 columns
+```{r}
+#standardise column name
+gii_2010 <- gii_2010 %>%
+  clean_names()
+
+gii_2019 <- gii_2019 %>%
+  clean_names()
+
+world_spatial_data <- world_spatial_data %>%
+  clean_names()
+```
+
+```{r}
+#keep useful columns only
+gii_2010_col<-gii_2010 %>% 
+  dplyr::select(contains("country_iso_code"), 
+                contains("country"), 
+                contains("value")
+) 
+
+gii_2019_col<-gii_2019 %>% 
+  dplyr::select(contains("country_iso_code"), 
+                contains("country"), 
+                contains("value")
+) 
+
+world_spatial_col<-world_spatial_data %>% 
+  dplyr::select(contains("country"), 
+                contains("countryaff"), 
+                contains("aff_iso"),
+                contains("geometry")
+)
+```
+
+```{r}
+#renane column title
+gii_2010_col <- gii_2010_col %>%
+  dplyr::rename(value_2010 = value)
+
+gii_2019_col <- gii_2019_col %>%
+  dplyr::rename(value_2019 = value)
+```
+
+```{r}
+#consistent key column (same iso)
+world_spatial_col$aff_iso <- countrycode(world_spatial_col$aff_iso, origin = "iso2c", destination = "iso3c")
+```
+
+  2.2 join attributes to spatial data
+```{r}
+join_spatial_2010 <- world_spatial_col %>%
+  left_join(., gii_2010_col, by = c("aff_iso" = "country_iso_code", "countryaff" = "country"))
+
+join_spatial_gii <- join_spatial_2010 %>%
+  left_join(., gii_2019_col, by = c("aff_iso" = "country_iso_code", "countryaff" = "country"))
+```
+ 
+  2.3 gii difference
+```{r}
+join_spatial_gii <- join_spatial_gii %>%
+  mutate(gii_diff = value_2019 - value_2010)
+```
